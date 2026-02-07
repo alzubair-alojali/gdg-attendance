@@ -161,25 +161,6 @@ export function TicketCard({ attendee }: TicketCardProps) {
                             <Calendar className="h-4 w-4" />
                             <span>Present this QR at the event</span>
                         </div>
-
-                        {/* Actions */}
-                        <div className="flex gap-3">
-                            <Button
-                                onClick={handleDownload}
-                                variant="outline"
-                                className="flex-1 gap-2"
-                            >
-                                <Download className="h-4 w-4" />
-                                Save
-                            </Button>
-                            <Button
-                                onClick={handleShare}
-                                className="flex-1 gap-2 bg-primary hover:bg-primary/90"
-                            >
-                                <Share2 className="h-4 w-4" />
-                                Share
-                            </Button>
-                        </div>
                     </div>
 
                     {/* Decorative Elements */}
