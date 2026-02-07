@@ -39,9 +39,47 @@ export function TicketCard({ attendee }: TicketCardProps) {
     }
 
     const handleDownload = () => {
-        toast.info('Take a screenshot to save your ticket!', {
-            description: 'Or use your browser\'s print function to save as PDF',
-        })
+        const svg = document.querySelector('#ticket-qr-code svg') as SVGSVGElement
+        if (!svg) {
+            toast.error('Could not find QR code')
+            return
+        }
+
+        // Create a canvas and draw the SVG
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+        const svgData = new XMLSerializer().serializeToString(svg)
+        const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' })
+        const url = URL.createObjectURL(svgBlob)
+
+        const img = new window.Image()
+        img.onload = () => {
+            // Add padding for the white background
+            const padding = 32
+            canvas.width = img.width + padding * 2
+            canvas.height = img.height + padding * 2
+
+            // Fill white background
+            if (ctx) {
+                ctx.fillStyle = '#ffffff'
+                ctx.fillRect(0, 0, canvas.width, canvas.height)
+                ctx.drawImage(img, padding, padding)
+            }
+
+            URL.revokeObjectURL(url)
+
+            // Download the image
+            const link = document.createElement('a')
+            link.download = `ticket-${attendee.full_name.replace(/\s+/g, '-')}.png`
+            link.href = canvas.toDataURL('image/png')
+            link.click()
+            toast.success('QR Code downloaded!')
+        }
+        img.onerror = () => {
+            toast.error('Failed to generate image')
+            URL.revokeObjectURL(url)
+        }
+        img.src = url
     }
 
     return (
@@ -85,6 +123,7 @@ export function TicketCard({ attendee }: TicketCardProps) {
 
                     {/* QR Code */}
                     <motion.div
+                        id="ticket-qr-code"
                         className="flex justify-center mb-6"
                         whileHover={{ scale: 1.02 }}
                     >
