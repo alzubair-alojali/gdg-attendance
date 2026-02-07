@@ -11,8 +11,9 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
 import { Switch } from '@/components/ui/switch'
+import { Badge } from '@/components/ui/badge'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Calendar, CheckCircle, XCircle, Users } from 'lucide-react'
+import { ArrowLeft, Calendar, CheckCircle, XCircle, Users, UserCog } from 'lucide-react'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { toggleSessionActive, markAttendeePresent, markAttendeeAbsent } from '@/app/(protected)/actions'
@@ -72,14 +73,27 @@ export default function SessionDetailPage() {
         refetchOnMount: 'always',
     })
 
-    // Calculate present and absent lists
+    // Split attendees into Team and Participants
     const presentIds = new Set(attendanceLogs?.map((log) => log.attendee_id) || [])
-    const presentAttendees = allAttendees?.filter((a) => presentIds.has(a.id)) || []
-    const absentAttendees = allAttendees?.filter((a) => !presentIds.has(a.id)) || []
 
-    const totalAttendees = allAttendees?.length || 0
-    const presentCount = presentAttendees.length
-    const attendanceRate = totalAttendees > 0 ? Math.round((presentCount / totalAttendees) * 100) : 0
+    // Team members (category === 'Team')
+    const teamMembers = allAttendees?.filter((a) => a.category === 'Team') || []
+    const teamPresent = teamMembers.filter((a) => presentIds.has(a.id))
+    const teamAbsent = teamMembers.filter((a) => !presentIds.has(a.id))
+
+    // Participants (Students & Guests)
+    const participants = allAttendees?.filter((a) => a.category !== 'Team') || []
+    const participantsPresent = participants.filter((a) => presentIds.has(a.id))
+    const participantsAbsent = participants.filter((a) => !presentIds.has(a.id))
+
+    // Calculate stats
+    const teamTotal = teamMembers.length
+    const teamPresentCount = teamPresent.length
+    const teamRate = teamTotal > 0 ? Math.round((teamPresentCount / teamTotal) * 100) : 0
+
+    const participantsTotal = participants.length
+    const participantsPresentCount = participantsPresent.length
+    const participantsRate = participantsTotal > 0 ? Math.round((participantsPresentCount / participantsTotal) * 100) : 0
 
     const isLoading = sessionLoading || !allAttendees || !attendanceLogs
 
@@ -104,13 +118,11 @@ export default function SessionDetailPage() {
         const previousLogs = queryClient.getQueryData(['attendance-logs', sessionId])
 
         if (isPresent) {
-            // Mark as present - optimistically add to list
             queryClient.setQueryData(['attendance-logs', sessionId], (old: { attendee_id: string }[] | undefined) => [
                 ...(old || []),
                 { attendee_id: attendeeId }
             ])
         } else {
-            // Mark as absent - optimistically remove from list
             queryClient.setQueryData(['attendance-logs', sessionId], (old: { attendee_id: string }[] | undefined) =>
                 (old || []).filter(log => log.attendee_id !== attendeeId)
             )
@@ -121,16 +133,14 @@ export default function SessionDetailPage() {
             : await markAttendeeAbsent(attendeeId, sessionId)
 
         if (result.error) {
-            // Rollback on error
             queryClient.setQueryData(['attendance-logs', sessionId], previousLogs)
             toast.error('Failed to update attendance', { description: result.error })
             return
         }
 
-        // Refresh to ensure sync with server
         refetchLogs()
         invalidateAttendanceLogs(sessionId)
-        invalidateSessions() // Update session stats
+        invalidateSessions()
     }
 
     if (isLoading) {
@@ -199,82 +209,201 @@ export default function SessionDetailPage() {
                     </div>
                 </div>
 
-                {/* Stats Bar */}
-                <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="rounded-xl border border-border bg-card p-6"
-                >
-                    <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex items-center gap-8">
-                            <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-500/10">
-                                    <CheckCircle className="h-5 w-5 text-green-500" />
-                                </div>
-                                <div>
-                                    <p className="text-2xl font-bold text-foreground">{presentCount}</p>
-                                    <p className="text-sm text-muted-foreground">Present</p>
-                                </div>
-                            </div>
-
-                            <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/10">
-                                    <XCircle className="h-5 w-5 text-red-500" />
-                                </div>
-                                <div>
-                                    <p className="text-2xl font-bold text-foreground">{absentAttendees.length}</p>
-                                    <p className="text-sm text-muted-foreground">Absent</p>
-                                </div>
-                            </div>
-
-                            <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                                    <Users className="h-5 w-5 text-primary" />
-                                </div>
-                                <div>
-                                    <p className="text-2xl font-bold text-foreground">{totalAttendees}</p>
-                                    <p className="text-sm text-muted-foreground">Total</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="min-w-48">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm font-medium text-muted-foreground">Attendance Rate</span>
-                                <span className="text-lg font-bold text-primary">{attendanceRate}%</span>
-                            </div>
-                            <Progress value={attendanceRate} className="h-3" />
-                        </div>
-                    </div>
-                </motion.div>
-
-                {/* Attendance Lists */}
-                <Tabs defaultValue="present" className="space-y-4">
+                {/* Main Tabs: Participants vs Team */}
+                <Tabs defaultValue="participants" className="w-full">
                     <TabsList className="grid w-full max-w-md grid-cols-2">
-                        <TabsTrigger value="present" className="gap-2">
-                            <CheckCircle className="h-4 w-4" />
-                            Present ({presentCount})
+                        <TabsTrigger value="participants" className="gap-2">
+                            <Users className="h-4 w-4" />
+                            Participants
+                            <Badge variant="secondary" className="ml-1">
+                                {participantsTotal}
+                            </Badge>
                         </TabsTrigger>
-                        <TabsTrigger value="absent" className="gap-2">
-                            <XCircle className="h-4 w-4" />
-                            Absent ({absentAttendees.length})
+                        <TabsTrigger value="team" className="gap-2">
+                            <UserCog className="h-4 w-4" />
+                            GDG Team
+                            <Badge variant="secondary" className="ml-1">
+                                {teamTotal}
+                            </Badge>
                         </TabsTrigger>
                     </TabsList>
 
-                    <TabsContent value="present">
-                        <AttendeeList
-                            attendees={presentAttendees}
-                            type="present"
-                            onToggle={handleToggleAttendance}
-                        />
+                    {/* Participants Tab */}
+                    <TabsContent value="participants" className="space-y-6 mt-6">
+                        {/* Participants Stats */}
+                        <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="rounded-xl border border-border bg-card p-6"
+                        >
+                            <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="flex items-center gap-8">
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-500/10">
+                                            <CheckCircle className="h-5 w-5 text-green-500" />
+                                        </div>
+                                        <div>
+                                            <p className="text-2xl font-bold text-foreground">{participantsPresentCount}</p>
+                                            <p className="text-sm text-muted-foreground">Present</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/10">
+                                            <XCircle className="h-5 w-5 text-red-500" />
+                                        </div>
+                                        <div>
+                                            <p className="text-2xl font-bold text-foreground">{participantsAbsent.length}</p>
+                                            <p className="text-sm text-muted-foreground">Absent</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                                            <Users className="h-5 w-5 text-primary" />
+                                        </div>
+                                        <div>
+                                            <p className="text-2xl font-bold text-foreground">{participantsTotal}</p>
+                                            <p className="text-sm text-muted-foreground">Total</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="min-w-48">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-sm font-medium text-muted-foreground">Attendance Rate</span>
+                                        <span className="text-lg font-bold text-primary">{participantsRate}%</span>
+                                    </div>
+                                    <Progress value={participantsRate} className="h-3" />
+                                </div>
+                            </div>
+                        </motion.div>
+
+                        {/* Participants Attendance Lists */}
+                        <Tabs defaultValue="present" className="space-y-4">
+                            <TabsList className="grid w-full max-w-sm grid-cols-2">
+                                <TabsTrigger value="present" className="gap-2">
+                                    <CheckCircle className="h-4 w-4" />
+                                    Present ({participantsPresentCount})
+                                </TabsTrigger>
+                                <TabsTrigger value="absent" className="gap-2">
+                                    <XCircle className="h-4 w-4" />
+                                    Absent ({participantsAbsent.length})
+                                </TabsTrigger>
+                            </TabsList>
+
+                            <TabsContent value="present">
+                                <AttendeeList
+                                    attendees={participantsPresent}
+                                    type="present"
+                                    onToggle={handleToggleAttendance}
+                                    emptyMessage="No participants checked in yet"
+                                />
+                            </TabsContent>
+
+                            <TabsContent value="absent">
+                                <AttendeeList
+                                    attendees={participantsAbsent}
+                                    type="absent"
+                                    onToggle={handleToggleAttendance}
+                                    emptyMessage="All participants are present!"
+                                />
+                            </TabsContent>
+                        </Tabs>
                     </TabsContent>
 
-                    <TabsContent value="absent">
-                        <AttendeeList
-                            attendees={absentAttendees}
-                            type="absent"
-                            onToggle={handleToggleAttendance}
-                        />
+                    {/* Team Tab */}
+                    <TabsContent value="team" className="space-y-6 mt-6">
+                        {/* Team Stats */}
+                        <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="rounded-xl border border-google-blue/30 bg-google-blue/5 p-6"
+                        >
+                            <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="flex items-center gap-8">
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-500/10">
+                                            <CheckCircle className="h-5 w-5 text-green-500" />
+                                        </div>
+                                        <div>
+                                            <p className="text-2xl font-bold text-foreground">{teamPresentCount}</p>
+                                            <p className="text-sm text-muted-foreground">Present</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/10">
+                                            <XCircle className="h-5 w-5 text-red-500" />
+                                        </div>
+                                        <div>
+                                            <p className="text-2xl font-bold text-foreground">{teamAbsent.length}</p>
+                                            <p className="text-sm text-muted-foreground">Absent</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-google-blue/10">
+                                            <UserCog className="h-5 w-5 text-google-blue" />
+                                        </div>
+                                        <div>
+                                            <p className="text-2xl font-bold text-foreground">{teamTotal}</p>
+                                            <p className="text-sm text-muted-foreground">Total Team</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="min-w-48">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-sm font-medium text-muted-foreground">Team Attendance</span>
+                                        <span className="text-lg font-bold text-google-blue">{teamRate}%</span>
+                                    </div>
+                                    <Progress value={teamRate} className="h-3 [&>div]:bg-google-blue" />
+                                </div>
+                            </div>
+                        </motion.div>
+
+                        {/* Team Attendance Lists */}
+                        {teamTotal === 0 ? (
+                            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/50 py-12">
+                                <UserCog className="h-10 w-10 text-muted-foreground/50" />
+                                <p className="mt-3 text-muted-foreground">No team members assigned</p>
+                                <p className="text-sm text-muted-foreground/70">Add team members from the Team page</p>
+                            </div>
+                        ) : (
+                            <Tabs defaultValue="present" className="space-y-4">
+                                <TabsList className="grid w-full max-w-sm grid-cols-2">
+                                    <TabsTrigger value="present" className="gap-2">
+                                        <CheckCircle className="h-4 w-4" />
+                                        Present ({teamPresentCount})
+                                    </TabsTrigger>
+                                    <TabsTrigger value="absent" className="gap-2">
+                                        <XCircle className="h-4 w-4" />
+                                        Absent ({teamAbsent.length})
+                                    </TabsTrigger>
+                                </TabsList>
+
+                                <TabsContent value="present">
+                                    <AttendeeList
+                                        attendees={teamPresent}
+                                        type="present"
+                                        onToggle={handleToggleAttendance}
+                                        emptyMessage="No team members checked in yet"
+                                        showRole
+                                    />
+                                </TabsContent>
+
+                                <TabsContent value="absent">
+                                    <AttendeeList
+                                        attendees={teamAbsent}
+                                        type="absent"
+                                        onToggle={handleToggleAttendance}
+                                        emptyMessage="All team members are present!"
+                                        showRole
+                                    />
+                                </TabsContent>
+                            </Tabs>
+                        )}
                     </TabsContent>
                 </Tabs>
             </div>
@@ -287,20 +416,22 @@ interface AttendeeListProps {
     attendees: Attendee[]
     type: 'present' | 'absent'
     onToggle: (attendeeId: string, markAsPresent: boolean) => Promise<void>
+    emptyMessage?: string
+    showRole?: boolean
 }
 
-function AttendeeList({ attendees, type, onToggle }: AttendeeListProps) {
+function AttendeeList({ attendees, type, onToggle, emptyMessage, showRole }: AttendeeListProps) {
     const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set())
 
     const categoryColors: Record<string, string> = {
-        Team: 'bg-[#4285F4]/10 text-[#4285F4]',
-        Student: 'bg-[#34A853]/10 text-[#34A853]',
-        Guest: 'bg-[#FBBC05]/10 text-[#FBBC05]',
+        Team: 'bg-google-blue/10 text-google-blue',
+        Student: 'bg-google-green/10 text-google-green',
+        Guest: 'bg-google-yellow/10 text-google-yellow',
     }
 
     async function handleToggle(attendeeId: string) {
         setLoadingIds(prev => new Set(prev).add(attendeeId))
-        await onToggle(attendeeId, type === 'absent') // If absent, mark present; if present, mark absent
+        await onToggle(attendeeId, type === 'absent')
         setLoadingIds(prev => {
             const next = new Set(prev)
             next.delete(attendeeId)
@@ -312,16 +443,11 @@ function AttendeeList({ attendees, type, onToggle }: AttendeeListProps) {
         return (
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/50 py-12">
                 {type === 'present' ? (
-                    <>
-                        <CheckCircle className="h-10 w-10 text-muted-foreground/50" />
-                        <p className="mt-3 text-muted-foreground">No attendees scanned yet</p>
-                    </>
+                    <CheckCircle className="h-10 w-10 text-muted-foreground/50" />
                 ) : (
-                    <>
-                        <XCircle className="h-10 w-10 text-muted-foreground/50" />
-                        <p className="mt-3 text-muted-foreground">All attendees are present!</p>
-                    </>
+                    <XCircle className="h-10 w-10 text-muted-foreground/50" />
                 )}
+                <p className="mt-3 text-muted-foreground">{emptyMessage}</p>
             </div>
         )
     }
@@ -348,7 +474,14 @@ function AttendeeList({ attendees, type, onToggle }: AttendeeListProps) {
                                     )}
                                 </div>
                                 <div>
-                                    <p className="font-medium text-foreground">{attendee.full_name}</p>
+                                    <div className="flex items-center gap-2">
+                                        <p className="font-medium text-foreground">{attendee.full_name}</p>
+                                        {showRole && attendee.organization && (
+                                            <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                                                {attendee.organization}
+                                            </span>
+                                        )}
+                                    </div>
                                     <p className="text-sm text-muted-foreground">{attendee.email}</p>
                                 </div>
                             </div>
@@ -360,7 +493,7 @@ function AttendeeList({ attendees, type, onToggle }: AttendeeListProps) {
 
                                 {/* Attendance Toggle Switch */}
                                 <div className="flex items-center gap-2">
-                                    <span className="text-xs text-muted-foreground">
+                                    <span className="text-xs text-muted-foreground hidden sm:inline">
                                         {type === 'present' ? 'Present' : 'Absent'}
                                     </span>
                                     <Switch
