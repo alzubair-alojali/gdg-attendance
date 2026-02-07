@@ -45,13 +45,14 @@ export function Sidebar() {
         >
             {/* Logo */}
             <div className="flex h-16 items-center gap-3 border-b border-border px-6">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-                    <QrCode className="h-5 w-5 text-primary-foreground" />
-                </div>
-                <div>
-                    <h1 className="text-lg font-semibold text-foreground">GDG Attend</h1>
-                    <p className="text-xs text-muted-foreground">Attendance System</p>
-                </div>
+                <img
+                    src="/gdg-logo.png"
+                    alt="GDG Logo"
+                    className="h-8 w-auto"
+                />
+                <span className="text-lg font-semibold text-foreground tracking-tight">
+                    Attendance
+                </span>
             </div>
 
             {/* Navigation */}

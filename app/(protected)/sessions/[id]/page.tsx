@@ -1,7 +1,8 @@
 'use client'
 
+import { useState } from 'react'
 import { useParams } from 'next/navigation'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { Session, Attendee } from '@/types/database.types'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -9,11 +10,12 @@ import { PageTransition } from '@/components/motion/PageTransition'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
+import { Switch } from '@/components/ui/switch'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Calendar, CheckCircle, XCircle, Users, Clock } from 'lucide-react'
+import { ArrowLeft, Calendar, CheckCircle, XCircle, Users } from 'lucide-react'
 import Link from 'next/link'
 import { format } from 'date-fns'
-import { toggleSessionActive } from '@/app/(protected)/actions'
+import { toggleSessionActive, markAttendeePresent, markAttendeeAbsent } from '@/app/(protected)/actions'
 import { toast } from 'sonner'
 import { useInvalidateQueries } from '@/hooks/useSupabaseQuery'
 
@@ -21,7 +23,8 @@ export default function SessionDetailPage() {
     const params = useParams()
     const sessionId = params.id as string
     const supabase = createClient()
-    const { invalidateSessions, invalidateDashboard, invalidateActiveSession } = useInvalidateQueries()
+    const queryClient = useQueryClient()
+    const { invalidateSessions, invalidateDashboard, invalidateActiveSession, invalidateAttendanceLogs } = useInvalidateQueries()
 
     // Fetch session details
     const { data: session, isLoading: sessionLoading, refetch: refetchSession } = useQuery({
@@ -55,7 +58,7 @@ export default function SessionDetailPage() {
     })
 
     // Fetch attendance logs for this session
-    const { data: attendanceLogs } = useQuery({
+    const { data: attendanceLogs, refetch: refetchLogs } = useQuery({
         queryKey: ['attendance-logs', sessionId],
         queryFn: async () => {
             const { data, error } = await supabase
@@ -94,6 +97,40 @@ export default function SessionDetailPage() {
         invalidateSessions()
         invalidateDashboard()
         invalidateActiveSession()
+    }
+
+    async function handleToggleAttendance(attendeeId: string, isPresent: boolean) {
+        // Optimistic update
+        const previousLogs = queryClient.getQueryData(['attendance-logs', sessionId])
+
+        if (isPresent) {
+            // Mark as present - optimistically add to list
+            queryClient.setQueryData(['attendance-logs', sessionId], (old: { attendee_id: string }[] | undefined) => [
+                ...(old || []),
+                { attendee_id: attendeeId }
+            ])
+        } else {
+            // Mark as absent - optimistically remove from list
+            queryClient.setQueryData(['attendance-logs', sessionId], (old: { attendee_id: string }[] | undefined) =>
+                (old || []).filter(log => log.attendee_id !== attendeeId)
+            )
+        }
+
+        const result = isPresent
+            ? await markAttendeePresent(attendeeId, sessionId)
+            : await markAttendeeAbsent(attendeeId, sessionId)
+
+        if (result.error) {
+            // Rollback on error
+            queryClient.setQueryData(['attendance-logs', sessionId], previousLogs)
+            toast.error('Failed to update attendance', { description: result.error })
+            return
+        }
+
+        // Refresh to ensure sync with server
+        refetchLogs()
+        invalidateAttendanceLogs(sessionId)
+        invalidateSessions() // Update session stats
     }
 
     if (isLoading) {
@@ -225,11 +262,19 @@ export default function SessionDetailPage() {
                     </TabsList>
 
                     <TabsContent value="present">
-                        <AttendeeList attendees={presentAttendees} type="present" />
+                        <AttendeeList
+                            attendees={presentAttendees}
+                            type="present"
+                            onToggle={handleToggleAttendance}
+                        />
                     </TabsContent>
 
                     <TabsContent value="absent">
-                        <AttendeeList attendees={absentAttendees} type="absent" />
+                        <AttendeeList
+                            attendees={absentAttendees}
+                            type="absent"
+                            onToggle={handleToggleAttendance}
+                        />
                     </TabsContent>
                 </Tabs>
             </div>
@@ -237,12 +282,30 @@ export default function SessionDetailPage() {
     )
 }
 
-// Attendee List Component
-function AttendeeList({ attendees, type }: { attendees: Attendee[]; type: 'present' | 'absent' }) {
+// Attendee List Component with Toggle
+interface AttendeeListProps {
+    attendees: Attendee[]
+    type: 'present' | 'absent'
+    onToggle: (attendeeId: string, markAsPresent: boolean) => Promise<void>
+}
+
+function AttendeeList({ attendees, type, onToggle }: AttendeeListProps) {
+    const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set())
+
     const categoryColors: Record<string, string> = {
         Team: 'bg-[#4285F4]/10 text-[#4285F4]',
         Student: 'bg-[#34A853]/10 text-[#34A853]',
         Guest: 'bg-[#FBBC05]/10 text-[#FBBC05]',
+    }
+
+    async function handleToggle(attendeeId: string) {
+        setLoadingIds(prev => new Set(prev).add(attendeeId))
+        await onToggle(attendeeId, type === 'absent') // If absent, mark present; if present, mark absent
+        setLoadingIds(prev => {
+            const next = new Set(prev)
+            next.delete(attendeeId)
+            return next
+        })
     }
 
     if (attendees.length === 0) {
@@ -272,6 +335,7 @@ function AttendeeList({ attendees, type }: { attendees: Attendee[]; type: 'prese
                             key={attendee.id}
                             initial={{ opacity: 0, x: -10 }}
                             animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 10 }}
                             transition={{ delay: Math.min(index * 0.02, 0.5) }}
                             className="flex items-center justify-between border-b border-border p-4 last:border-b-0"
                         >
@@ -288,9 +352,25 @@ function AttendeeList({ attendees, type }: { attendees: Attendee[]; type: 'prese
                                     <p className="text-sm text-muted-foreground">{attendee.email}</p>
                                 </div>
                             </div>
-                            <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${categoryColors[attendee.category]}`}>
-                                {attendee.category}
-                            </span>
+
+                            <div className="flex items-center gap-3">
+                                <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${categoryColors[attendee.category]}`}>
+                                    {attendee.category}
+                                </span>
+
+                                {/* Attendance Toggle Switch */}
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs text-muted-foreground">
+                                        {type === 'present' ? 'Present' : 'Absent'}
+                                    </span>
+                                    <Switch
+                                        checked={type === 'present'}
+                                        disabled={loadingIds.has(attendee.id)}
+                                        onCheckedChange={() => handleToggle(attendee.id)}
+                                        className="data-[state=checked]:bg-green-500"
+                                    />
+                                </div>
+                            </div>
                         </motion.div>
                     ))}
                 </AnimatePresence>

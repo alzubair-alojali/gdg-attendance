@@ -140,9 +140,27 @@ export function useInvalidateQueries() {
 
     return {
         invalidateAttendees: () => queryClient.invalidateQueries({ queryKey: ['attendees'] }),
-        invalidateSessions: () => queryClient.invalidateQueries({ queryKey: ['sessions'] }),
+        // Invalidate ALL session-related queries (sessions, sessions-with-stats, etc.)
+        invalidateSessions: () => {
+            queryClient.invalidateQueries({ queryKey: ['sessions'] })
+            queryClient.invalidateQueries({ queryKey: ['sessions-with-stats'] })
+            queryClient.invalidateQueries({
+                predicate: (query) =>
+                    Array.isArray(query.queryKey) && query.queryKey[0] === 'session'
+            })
+        },
         invalidateDashboard: () => queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] }),
         invalidateActiveSession: () => queryClient.invalidateQueries({ queryKey: ['active-session'] }),
+        invalidateAttendanceLogs: (sessionId?: string) => {
+            if (sessionId) {
+                queryClient.invalidateQueries({ queryKey: ['attendance-logs', sessionId] })
+            } else {
+                queryClient.invalidateQueries({
+                    predicate: (query) =>
+                        Array.isArray(query.queryKey) && query.queryKey[0] === 'attendance-logs'
+                })
+            }
+        },
         invalidateAll: () => queryClient.invalidateQueries(),
     }
 }

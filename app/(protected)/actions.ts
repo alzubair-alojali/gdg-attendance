@@ -77,6 +77,12 @@ export async function toggleSessionActive(sessionId: string, isActive: boolean) 
 export async function deleteSession(sessionId: string) {
     const supabase = await createClient()
 
+    // First delete all attendance logs for this session
+    await supabase
+        .from('attendance_logs')
+        .delete()
+        .eq('session_id', sessionId)
+
     const { error } = await supabase
         .from('sessions')
         .delete()
@@ -89,6 +95,81 @@ export async function deleteSession(sessionId: string) {
 
     revalidatePath('/')
     revalidatePath('/sessions')
+    return { success: true }
+}
+
+export async function updateSession(sessionId: string, title: string, date: string) {
+    if (!title || !date) {
+        return { error: 'Title and date are required' }
+    }
+
+    const supabase = await createClient()
+
+    const { error } = await supabase
+        .from('sessions')
+        // @ts-expect-error - Supabase types not properly inferred without codegen
+        .update({ title, date })
+        .eq('id', sessionId)
+
+    if (error) {
+        console.error('Error updating session:', error)
+        return { error: error.message }
+    }
+
+    revalidatePath('/')
+    revalidatePath('/sessions')
+    return { success: true }
+}
+
+// ============== ATTENDANCE ACTIONS ==============
+
+export async function markAttendeePresent(attendeeId: string, sessionId: string) {
+    const supabase = await createClient()
+
+    // Check if already marked present
+    const { data: existing } = await supabase
+        .from('attendance_logs')
+        .select('id')
+        .eq('attendee_id', attendeeId)
+        .eq('session_id', sessionId)
+        .single()
+
+    if (existing) {
+        return { success: true, message: 'Already marked present' }
+    }
+
+    const { error } = await supabase
+        .from('attendance_logs')
+        // @ts-expect-error - Supabase types not properly inferred without codegen
+        .insert({
+            attendee_id: attendeeId,
+            session_id: sessionId,
+        })
+
+    if (error) {
+        console.error('Error marking present:', error)
+        return { error: error.message }
+    }
+
+    revalidatePath(`/sessions/${sessionId}`)
+    return { success: true }
+}
+
+export async function markAttendeeAbsent(attendeeId: string, sessionId: string) {
+    const supabase = await createClient()
+
+    const { error } = await supabase
+        .from('attendance_logs')
+        .delete()
+        .eq('attendee_id', attendeeId)
+        .eq('session_id', sessionId)
+
+    if (error) {
+        console.error('Error marking absent:', error)
+        return { error: error.message }
+    }
+
+    revalidatePath(`/sessions/${sessionId}`)
     return { success: true }
 }
 
