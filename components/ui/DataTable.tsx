@@ -1,12 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, ReactNode } from 'react'
 import {
     ColumnDef,
     flexRender,
     getCoreRowModel,
     useReactTable,
-    getPaginationRowModel,
     getSortedRowModel,
     getFilteredRowModel,
     SortingState,
@@ -22,8 +21,7 @@ import {
     TableRow,
 } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
-import { Search, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search } from 'lucide-react'
 
 interface DataTableProps<TData, TValue> {
     columns: ColumnDef<TData, TValue>[]
@@ -31,6 +29,7 @@ interface DataTableProps<TData, TValue> {
     searchKey?: string
     searchPlaceholder?: string
     onRowClick?: (row: TData) => void
+    headerActions?: ReactNode
 }
 
 export function DataTable<TData, TValue>({
@@ -39,6 +38,7 @@ export function DataTable<TData, TValue>({
     searchKey = 'full_name',
     searchPlaceholder = 'Search...',
     onRowClick,
+    headerActions,
 }: DataTableProps<TData, TValue>) {
     const [sorting, setSorting] = useState<SortingState>([])
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -47,7 +47,6 @@ export function DataTable<TData, TValue>({
         data,
         columns,
         getCoreRowModel: getCoreRowModel(),
-        getPaginationRowModel: getPaginationRowModel(),
         getSortedRowModel: getSortedRowModel(),
         getFilteredRowModel: getFilteredRowModel(),
         onSortingChange: setSorting,
@@ -60,23 +59,30 @@ export function DataTable<TData, TValue>({
 
     return (
         <div className="space-y-4">
-            {/* Search */}
-            <div className="relative max-w-sm">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                    placeholder={searchPlaceholder}
-                    value={(table.getColumn(searchKey)?.getFilterValue() as string) ?? ''}
-                    onChange={(e) => table.getColumn(searchKey)?.setFilterValue(e.target.value)}
-                    className="pl-10"
-                />
+            {/* Header with Search and Actions */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="relative max-w-sm flex-1">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                        placeholder={searchPlaceholder}
+                        value={(table.getColumn(searchKey)?.getFilterValue() as string) ?? ''}
+                        onChange={(e) => table.getColumn(searchKey)?.setFilterValue(e.target.value)}
+                        className="pl-10"
+                    />
+                </div>
+                {headerActions && (
+                    <div className="flex items-center gap-2">
+                        {headerActions}
+                    </div>
+                )}
             </div>
 
-            {/* Table */}
-            <div className="rounded-xl border border-border bg-card">
+            {/* Scrollable Table Container */}
+            <div className="max-h-[600px] overflow-auto rounded-xl border border-border bg-card">
                 <Table>
-                    <TableHeader>
+                    <TableHeader className="sticky top-0 z-10 bg-card/95 backdrop-blur">
                         {table.getHeaderGroups().map((headerGroup) => (
-                            <TableRow key={headerGroup.id} className="hover:bg-transparent">
+                            <TableRow key={headerGroup.id} className="hover:bg-transparent border-b border-border">
                                 {headerGroup.headers.map((header) => (
                                     <TableHead key={header.id} className="text-muted-foreground">
                                         {header.isPlaceholder
@@ -96,7 +102,7 @@ export function DataTable<TData, TValue>({
                                         initial={{ opacity: 0, y: 10 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         exit={{ opacity: 0, y: -10 }}
-                                        transition={{ delay: index * 0.05 }}
+                                        transition={{ delay: Math.min(index * 0.02, 0.5) }}
                                         onClick={() => onRowClick?.(row.original)}
                                         className={`border-b border-border transition-colors hover:bg-muted/50 ${onRowClick ? 'cursor-pointer' : ''
                                             }`}
@@ -121,31 +127,9 @@ export function DataTable<TData, TValue>({
                 </Table>
             </div>
 
-            {/* Pagination */}
-            <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                    {table.getFilteredRowModel().rows.length} result(s)
-                </p>
-                <div className="flex items-center gap-2">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => table.previousPage()}
-                        disabled={!table.getCanPreviousPage()}
-                    >
-                        <ChevronLeft className="h-4 w-4" />
-                        Previous
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => table.nextPage()}
-                        disabled={!table.getCanNextPage()}
-                    >
-                        Next
-                        <ChevronRight className="h-4 w-4" />
-                    </Button>
-                </div>
+            {/* Results Count */}
+            <div className="text-sm text-muted-foreground">
+                {table.getFilteredRowModel().rows.length} result(s)
             </div>
         </div>
     )

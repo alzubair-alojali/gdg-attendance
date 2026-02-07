@@ -8,6 +8,7 @@ import {
     Users,
     UserCog,
     QrCode,
+    Calendar,
     LogOut
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -19,6 +20,7 @@ const navItems = [
     { href: '/', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/participants', label: 'Participants', icon: Users },
     { href: '/team', label: 'Team', icon: UserCog },
+    { href: '/sessions', label: 'Sessions', icon: Calendar },
     { href: '/scan', label: 'Scan QR', icon: QrCode },
 ]
 

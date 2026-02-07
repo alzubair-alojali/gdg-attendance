@@ -6,15 +6,16 @@ import { motion } from 'framer-motion'
 import {
     LayoutDashboard,
     Users,
-    UserCog,
+    Calendar,
     QrCode
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+// Reduced set for mobile - only 4 items fit well
 const navItems = [
-    { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/participants', label: 'Participants', icon: Users },
-    { href: '/team', label: 'Team', icon: UserCog },
+    { href: '/', label: 'Home', icon: LayoutDashboard },
+    { href: '/participants', label: 'Attend', icon: Users },
+    { href: '/sessions', label: 'Sessions', icon: Calendar },
     { href: '/scan', label: 'Scan', icon: QrCode },
 ]
 

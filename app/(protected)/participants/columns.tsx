@@ -4,7 +4,13 @@ import { ColumnDef } from '@tanstack/react-table'
 import { Attendee } from '@/types/database.types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { ArrowUpDown } from 'lucide-react'
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { ArrowUpDown, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const categoryColors: Record<string, string> = {
@@ -13,7 +19,12 @@ const categoryColors: Record<string, string> = {
     Guest: 'bg-[#FBBC05] text-black hover:bg-[#FBBC05]/90',
 }
 
-export const attendeeColumns: ColumnDef<Attendee>[] = [
+interface ColumnActions {
+    onEdit?: (attendee: Attendee) => void
+    onDelete?: (attendee: Attendee) => void
+}
+
+export const createAttendeeColumns = (actions?: ColumnActions): ColumnDef<Attendee>[] => [
     {
         accessorKey: 'full_name',
         header: ({ column }) => (
@@ -39,7 +50,16 @@ export const attendeeColumns: ColumnDef<Attendee>[] = [
     },
     {
         accessorKey: 'category',
-        header: 'Category',
+        header: ({ column }) => (
+            <Button
+                variant="ghost"
+                onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+                className="-ml-4 hover:bg-transparent"
+            >
+                Category
+                <ArrowUpDown className="ml-2 h-4 w-4" />
+            </Button>
+        ),
         cell: ({ row }) => {
             const category = row.getValue('category') as string
             return (
@@ -61,4 +81,52 @@ export const attendeeColumns: ColumnDef<Attendee>[] = [
             </div>
         ),
     },
+    // Actions Column
+    {
+        id: 'actions',
+        cell: ({ row }) => {
+            const attendee = row.original
+
+            if (!actions) return null
+
+            return (
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button
+                            variant="ghost"
+                            className="h-8 w-8 p-0"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <span className="sr-only">Open menu</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                actions.onEdit?.(attendee)
+                            }}
+                        >
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                actions.onDelete?.(attendee)
+                            }}
+                            className="text-destructive focus:text-destructive"
+                        >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            )
+        },
+    },
 ]
+
+// Keep the original export for backwards compatibility
+export const attendeeColumns = createAttendeeColumns()
