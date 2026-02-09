@@ -8,11 +8,12 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { PageTransition } from '@/components/motion/PageTransition'
 import { CreateSessionDialog } from '@/components/ui/CreateSessionDialog'
 import { EditSessionDialog, DeleteSessionDialog } from '@/components/ui/SessionDialogs'
+import { ExportReportDialog } from '@/components/reports/ExportReportDialog'
 import { StaggerContainer, StaggerItem } from '@/components/motion/PageTransition'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { motion } from 'framer-motion'
-import { Calendar, CheckCircle, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { Calendar, CheckCircle, MoreHorizontal, Pencil, Trash2, FileDown } from 'lucide-react'
 import Link from 'next/link'
 import { format } from 'date-fns'
 
@@ -24,6 +25,7 @@ export default function SessionsPage() {
     const supabase = createClient()
     const [editSession, setEditSession] = useState<Session | null>(null)
     const [deleteSession, setDeleteSession] = useState<Session | null>(null)
+    const [exportOpen, setExportOpen] = useState(false)
 
     const { data: sessions, isLoading } = useQuery({
         queryKey: ['sessions-with-stats'],
@@ -67,7 +69,16 @@ export default function SessionsPage() {
                             View attendance analytics for all event sessions
                         </p>
                     </div>
-                    <CreateSessionDialog />
+                    <div className="flex items-center gap-2">
+                        <Button
+                            onClick={() => setExportOpen(true)}
+                            className="gap-2 bg-gradient-to-r from-red-500 to-rose-600 text-white shadow-lg shadow-red-500/25 hover:from-red-600 hover:to-rose-700 hover:shadow-red-500/40 transition-all duration-300"
+                        >
+                            <FileDown className="size-4" />
+                            <span className="hidden sm:inline">Export PDF</span>
+                        </Button>
+                        <CreateSessionDialog />
+                    </div>
                 </div>
 
                 {/* Sessions Grid */}
@@ -199,6 +210,9 @@ export default function SessionsPage() {
                     open={!!deleteSession}
                     onOpenChange={(open) => !open && setDeleteSession(null)}
                 />
+
+                {/* Export Report Dialog */}
+                <ExportReportDialog open={exportOpen} onOpenChange={setExportOpen} />
             </div>
         </PageTransition>
     )
