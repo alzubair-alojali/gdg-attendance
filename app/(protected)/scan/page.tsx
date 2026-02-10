@@ -5,11 +5,10 @@ import { Scanner } from '@yudiel/react-qr-scanner'
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { ScanFeedback } from '@/components/ui/ScanFeedback'
-import { PageTransition } from '@/components/motion/PageTransition'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { QrCode, Camera, CameraOff } from 'lucide-react'
+import { QrCode, Camera, CameraOff, ScanLine } from 'lucide-react'
 import { motion } from 'framer-motion'
 import type { Attendee } from '@/types/database.types'
 
@@ -118,27 +117,42 @@ export default function ScanPage() {
     }, [activeSession, lastScannedId, showFeedback, supabase])
 
     return (
-        <PageTransition>
+        <>
             <div className="flex flex-col items-center space-y-6">
                 {/* Header */}
-                <div className="text-center">
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                    className="text-center space-y-2"
+                >
+                    <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                        <ScanLine className="h-4 w-4" />
+                        <span className="font-data text-xs uppercase tracking-wider">
+                            QR Scanner
+                        </span>
+                    </div>
                     <h1 className="text-3xl font-bold tracking-tight text-foreground">Scan QR</h1>
-                    <p className="mt-1 text-muted-foreground">
+                    <p className="text-muted-foreground">
                         Point the camera at an attendee&apos;s QR code
                     </p>
-                </div>
+                </motion.div>
 
                 {/* Session Status */}
                 {!activeSession && (
-                    <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/10 p-4">
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="rounded-2xl glass-card border-yellow-500/20 bg-yellow-500/5 p-4"
+                    >
                         <p className="text-sm font-medium text-yellow-500">
                             ⚠️ No active session — Scanning is disabled
                         </p>
-                    </div>
+                    </motion.div>
                 )}
 
                 {/* Scanner */}
-                <Card className="w-full max-w-md overflow-hidden">
+                <Card className="w-full max-w-md overflow-hidden glass-card rounded-2xl">
                     <CardContent className="p-0">
                         <div className="relative aspect-square">
                             {isScanning && activeSession ? (
@@ -158,13 +172,13 @@ export default function ScanPage() {
                                     }}
                                 />
                             ) : (
-                                <div className="flex h-full items-center justify-center bg-muted">
+                                <div className="flex h-full items-center justify-center bg-white/[0.02]">
                                     <motion.div
                                         initial={{ scale: 0.8, opacity: 0 }}
                                         animate={{ scale: 1, opacity: 1 }}
                                         className="flex flex-col items-center gap-4 text-center"
                                     >
-                                        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted-foreground/10">
+                                        <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-white/[0.04] ring-1 ring-white/[0.08]">
                                             <CameraOff className="h-10 w-10 text-muted-foreground" />
                                         </div>
                                         <p className="text-sm text-muted-foreground">
@@ -177,7 +191,18 @@ export default function ScanPage() {
                             {/* Scan overlay */}
                             {isScanning && activeSession && (
                                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                                    <div className="h-48 w-48 rounded-2xl border-2 border-primary shadow-lg shadow-primary/20" />
+                                    <div className="h-48 w-48 rounded-2xl border-2 border-primary/80 shadow-lg shadow-primary/20" />
+                                    {/* Animated scan line */}
+                                    <motion.div
+                                        animate={{ y: [-90, 90] }}
+                                        transition={{
+                                            duration: 2,
+                                            repeat: Infinity,
+                                            repeatType: 'reverse',
+                                            ease: 'easeInOut'
+                                        }}
+                                        className="absolute h-0.5 w-44 bg-gradient-to-r from-transparent via-primary to-transparent"
+                                    />
                                 </div>
                             )}
                         </div>
@@ -191,7 +216,7 @@ export default function ScanPage() {
                         size="lg"
                         onClick={() => setIsScanning(!isScanning)}
                         disabled={!activeSession}
-                        className="gap-2"
+                        className="gap-2 glass border-white/[0.08] hover:bg-white/[0.06] active:scale-95 transition-all"
                     >
                         {isScanning ? (
                             <>
@@ -224,6 +249,6 @@ export default function ScanPage() {
                     subtitle={feedback.subtitle}
                 />
             )}
-        </PageTransition>
+        </>
     )
 }

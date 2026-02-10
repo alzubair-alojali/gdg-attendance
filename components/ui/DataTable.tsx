@@ -67,7 +67,7 @@ export function DataTable<TData, TValue>({
                         placeholder={searchPlaceholder}
                         value={(table.getColumn(searchKey)?.getFilterValue() as string) ?? ''}
                         onChange={(e) => table.getColumn(searchKey)?.setFilterValue(e.target.value)}
-                        className="pl-10"
+                        className="pl-10 bg-white/[0.04] border-white/[0.08] focus:border-primary/50"
                     />
                 </div>
                 {headerActions && (
@@ -78,13 +78,13 @@ export function DataTable<TData, TValue>({
             </div>
 
             {/* Scrollable Table Container */}
-            <div className="max-h-[600px] overflow-auto rounded-xl border border-border bg-card">
+            <div className="max-h-[600px] overflow-auto rounded-2xl glass-card">
                 <Table>
-                    <TableHeader className="sticky top-0 z-10 bg-card/95 backdrop-blur">
+                    <TableHeader className="sticky top-0 z-10 bg-[rgba(16,16,20,0.9)] backdrop-blur-sm">
                         {table.getHeaderGroups().map((headerGroup) => (
-                            <TableRow key={headerGroup.id} className="hover:bg-transparent border-b border-border">
+                            <TableRow key={headerGroup.id} className="hover:bg-transparent border-b border-white/[0.06]">
                                 {headerGroup.headers.map((header) => (
-                                    <TableHead key={header.id} className="text-muted-foreground">
+                                    <TableHead key={header.id} className="text-muted-foreground text-xs uppercase tracking-wider font-medium">
                                         {header.isPlaceholder
                                             ? null
                                             : flexRender(header.column.columnDef.header, header.getContext())}
@@ -99,12 +99,17 @@ export function DataTable<TData, TValue>({
                                 table.getRowModel().rows.map((row, index) => (
                                     <motion.tr
                                         key={row.id}
-                                        initial={{ opacity: 0, y: 10 }}
+                                        initial={{ opacity: 0, y: 8 }}
                                         animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, y: -10 }}
-                                        transition={{ delay: Math.min(index * 0.02, 0.5) }}
+                                        exit={{ opacity: 0, y: -8 }}
+                                        transition={{
+                                            type: 'spring',
+                                            stiffness: 400,
+                                            damping: 30,
+                                            delay: Math.min(index * 0.03, 0.6),
+                                        }}
                                         onClick={() => onRowClick?.(row.original)}
-                                        className={`border-b border-border transition-colors hover:bg-muted/50 ${onRowClick ? 'cursor-pointer' : ''
+                                        className={`border-b border-white/[0.04] transition-colors hover:bg-white/[0.04] ${onRowClick ? 'cursor-pointer' : ''
                                             }`}
                                         data-state={row.getIsSelected() && 'selected'}
                                     >
@@ -117,7 +122,7 @@ export function DataTable<TData, TValue>({
                                 ))
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={columns.length} className="h-24 text-center">
+                                    <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
                                         No results.
                                     </TableCell>
                                 </TableRow>
@@ -128,7 +133,7 @@ export function DataTable<TData, TValue>({
             </div>
 
             {/* Results Count */}
-            <div className="text-sm text-muted-foreground">
+            <div className="text-sm text-muted-foreground font-data">
                 {table.getFilteredRowModel().rows.length} result(s)
             </div>
         </div>
