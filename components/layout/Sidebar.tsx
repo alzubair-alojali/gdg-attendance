@@ -12,6 +12,7 @@ import {
     LogOut,
     ChevronsLeft,
     ChevronsRight,
+    Trophy,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/utils/supabase/client'
@@ -23,6 +24,7 @@ const navItems = [
     { href: '/participants', label: 'Participants', icon: Users },
     { href: '/team', label: 'Team', icon: UserCog },
     { href: '/sessions', label: 'Sessions', icon: Calendar },
+    { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
     { href: '/scan', label: 'Scan QR', icon: QrCode },
 ]
 
